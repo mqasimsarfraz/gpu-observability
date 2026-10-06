@@ -1,0 +1,65 @@
+hostPID: true
+
+nodeSelector:
+  kubernetes.io/os: linux
+  kubernetes.azure.com/accelerator: nvidia
+
+bridges:
+  gpu:
+    enabled: true
+
+config:
+  operator:
+    otel-metrics:
+      otel-metrics-listen: true
+      otel-metrics-listen-address: "0.0.0.0:2224"
+    otel-profiles:
+      exporters:
+        pyroscope-exporter:
+          exporter: otlp-grpc
+          compression: gzip
+          endpoint: pyroscope:4040
+          insecure: true
+
+  gadgetConfigMaps:
+    - name: gpu-top
+      imageName: ghcr.io/inspektor-gadget/gadget/gpu_top:v0.55.0
+      tags:
+        - gpu
+        - metrics
+      paramValues:
+        operator.oci.annotate: "gpu_top:metrics.collect=true,gpu_top.device:metrics.type=key,gpu_top.sm_util_pct:metrics.type=gauge,gpu_top.mem_util_pct:metrics.type=gauge,gpu_top.mem_used_raw:metrics.type=gauge,gpu_top.mem_total_raw:metrics.type=gauge,gpu_top.mem_reserved_raw:metrics.type=gauge,gpu_top.enc_util_pct:metrics.type=gauge,gpu_top.dec_util_pct:metrics.type=gauge,gpu_top.throttle_reasons:metrics.type=gauge,gpu_top.pcie_tx_kbps:metrics.type=gauge,gpu_top.pcie_rx_kbps:metrics.type=gauge,gpu_top.nvlink_tx_kbps:metrics.type=gauge,gpu_top.nvlink_rx_kbps:metrics.type=gauge,gpu_top.fan_speed_pct:metrics.type=gauge,gpu_top.compute_mode:metrics.type=gauge"
+        operator.otel-metrics.otel-metrics-name: "gpu_top:gpu-top"
+
+    - name: gpu-top-per-pid
+      imageName: ghcr.io/inspektor-gadget/gadget/gpu_top_per_pid:v0.55.0
+      tags:
+        - gpu
+        - metrics
+      paramValues:
+        operator.KubeManager.all-namespaces: "true"
+        operator.oci.annotate: "gpu_top_per_pid:metrics.collect=true,gpu_top_per_pid.proc.pid:metrics.type=key,gpu_top_per_pid.proc.comm:metrics.type=key,gpu_top_per_pid.k8s.podName:metrics.type=key,gpu_top_per_pid.k8s.namespace:metrics.type=key,gpu_top_per_pid.runtime.containerName:metrics.type=key,gpu_top_per_pid.gpu_device_primary:metrics.type=key,gpu_top_per_pid.mem_used_raw:metrics.type=gauge,gpu_top_per_pid.sm_util_pct_max:metrics.type=gauge,gpu_top_per_pid.mem_util_pct_max:metrics.type=gauge,gpu_top_per_pid.device_count:metrics.type=gauge"
+        operator.otel-metrics.otel-metrics-name: "gpu_top_per_pid:gpu-top-per-pid"
+
+    - name: gpu-memory-metrics
+      imageName: ghcr.io/inspektor-gadget/gadget/top_cuda_memory:v0.55.0
+      tags:
+        - gpu
+        - metrics
+      paramValues:
+        operator.KubeManager.all-namespaces: "true"
+        operator.oci.annotate: "libcuda_mem_stats.k8s.podName:metrics.type=key,libcuda_mem_stats.k8s.namespace:metrics.type=key,libcudart_mem_stats.k8s.podName:metrics.type=key,libcudart_mem_stats.k8s.namespace:metrics.type=key"
+        operator.otel-metrics.otel-metrics-name: "libcuda_mem_stats:libcuda_mem_stats,libcudart_mem_stats:libcudart_mem_stats"
+
+    - name: gpu-memory-profiles
+      imageName: ghcr.io/inspektor-gadget/gadget/profile_cuda:v0.55.0
+      tags:
+        - gpu
+        - profiles
+      paramValues:
+        operator.KubeManager.all-namespaces: "true"
+        operator.oci.annotate: "allocs.k8s.podName:profiles.sample-attribute=true,allocs.k8s.namespace:profiles.sample-attribute=true"
+        operator.oci.ebpf.collect-otel-stack: "true"
+        operator.oci.ebpf.collect-ustack: "true"
+        operator.otel-profiles.otel-profiles-exporter: pyroscope-exporter
+        operator.ustack.symbolizers: otel-ebpf-profiler
